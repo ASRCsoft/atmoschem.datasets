@@ -1,7 +1,6 @@
 /* Creating tables used by multiple instruments */
 
 create extension btree_gist;
-CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 /* site table */
 create table sites (
@@ -36,4 +35,3 @@ create table measurements (
   flagged boolean,
   primary key(measurement_type_id, instrument_time)
 );
-SELECT create_hypertable('measurements', 'instrument_time');
