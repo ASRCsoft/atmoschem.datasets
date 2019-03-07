@@ -12,6 +12,67 @@ create table manual_flags (
   )
 );
 
+/* Find frozen wind periods */
+-- get the anemometer measurement type IDs
+create or replace function anemometer_ids() RETURNS int[] AS $$
+  select array_agg(id)
+    from (select id
+	    from measurement_types
+	   where measurement in ('WS3Cup',
+				 'WS3Cup_Max',
+				 'WS3CupB',
+				 'WS3CupB_Max')) m1;
+$$ LANGUAGE sql stable parallel safe;
+
+-- see if the anemometers look frozen
+CREATE or replace VIEW wind_looks_frozen AS
+  select measurement_type_id,
+	 instrument_time,
+	 (bit_and(slow_wind::int) over w)::boolean as looks_frozen
+    from (select measurement_type_id,
+		 instrument_time,
+		 value < .2 as slow_wind
+	    from measurements
+	   where measurement_type_id=any(anemometer_ids())) w1
+	   window w as (partition by measurement_type_id
+			order by instrument_time
+			rows between current row and 5 following);
+
+-- get contiguous periods of frozen anemometer times
+CREATE or replace VIEW contiguous_freezes AS
+  select measurement_type_id,
+	 tsrange(min(instrument_time) - interval '1 hour',
+		 max(instrument_time) + interval '15 minutes') as freezing_times
+    from (select *,
+		 sum(freeze_starts::int) over w as freeze_group
+	    from (select *,
+			 looks_frozen and not lag(looks_frozen) over w as freeze_starts
+		    from wind_looks_frozen
+			   window w as (partition by measurement_type_id
+					order by instrument_time)) w1
+		   window w as (partition by measurement_type_id
+				order by instrument_time)) w2
+   where looks_frozen
+   group by measurement_type_id, freeze_group;
+
+-- get clusters of frozen anemometer times
+CREATE or replace VIEW freezing_clusters AS
+  select measurement_type_id,
+	 tsrange(min(lower(freezing_times)),
+		 max(upper(freezing_times))) as freeze_period
+    from (select *,
+		 sum(new_freeze::int) over w as freeze_cluster
+	    from (select *,
+			 coalesce(not freezing_times && lag(freezing_times) over w,
+				  true) as new_freeze
+		    from contiguous_freezes
+			   window w as (partition by measurement_type_id
+					order by lower(freezing_times))) w1
+		   window w as (partition by measurement_type_id
+				order by lower(freezing_times))) w2
+   group by measurement_type_id, freeze_cluster;
+
+/* Check for flags */
 create or replace function has_manual_flag(measurement_type int, measurement_time timestamp) RETURNS bool AS $$
   select exists(select *
 		  from manual_flags
