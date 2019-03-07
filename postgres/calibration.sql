@@ -63,7 +63,7 @@ CREATE MATERIALIZED VIEW calibration_values AS
 	   where type in ('zero', 'span')) c1
    where value is not null;
 -- to make the interpolate_cal function faster
-CREATE INDEX calibration_values_upper_time_idx ON calibration_values(upper(cal_times));
+CREATE INDEX calibration_values_upper_time_idx ON calibration_values(measurement_type_id, type, upper(cal_times));
 
 /* Estimate calibration values using linear interpolation */
 CREATE OR REPLACE FUNCTION interpolate_cal(measurement_type_id int, type text, t timestamp)
