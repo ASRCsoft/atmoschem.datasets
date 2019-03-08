@@ -15,7 +15,7 @@ dbxDisconnect(pg)
 
 get_site_id = function(x) sites$id[match(x, sites$short_name)]
 
-write_metadata = function(f, tbl_name, idx_cols) {
+write_metadata = function(f, tbl_name) {
   ## upsert metadata from a metadata csv file
   meta = read.csv(f, na.strings=c('', 'NA'))
   meta$site_id = get_site_id(meta$site)
@@ -25,7 +25,10 @@ write_metadata = function(f, tbl_name, idx_cols) {
   meta$site_id = NULL
   meta$measurement = NULL
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
-  dbxUpsert(pg, tbl_name, meta, where_cols = idx_cols)
+  ## clear old data first
+  dbxDelete(pg, tbl_name)
+  ## now add new data
+  dbxInsert(pg, tbl_name, meta)
   dbxDisconnect(pg)
 }
 
@@ -44,14 +47,12 @@ write_measurement_types = function(f) {
 
 write_autocals = function(f) {
   autocal_file = file.path(f, 'autocals.csv')
-  idx_cols = c('dates', 'times', 'measurement_type_id')
-  write_metadata(autocal_file, 'autocals', idx_cols)
+  write_metadata(autocal_file, 'autocals')
 }
 
 write_manual_flags = function(f) {
   flags_file = file.path(f, 'manual_flags.csv')
-  idx_cols = c('times', 'measurement_type_id')
-  write_metadata(flags_file, 'manual_flags', idx_cols)
+  write_metadata(flags_file, 'manual_flags')
 }
 
 
