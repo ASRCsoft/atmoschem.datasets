@@ -1,6 +1,7 @@
 site,measurement,valid_range,mdl,span,has_calibration,remove_outliers
 WFMS,NO,,0.03,3.79,true,true
 WFMS,NOx,,,3.79,true,true
+WFMS,NO2,,,,,
 WFMS,NOy,,,3.79,true,true
 WFMS,Ozone,,,,,true
 WFMS,CO,,,434.9,true,true

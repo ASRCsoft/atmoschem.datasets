@@ -86,18 +86,29 @@ CREATE OR REPLACE FUNCTION get_measurement_id(int, text)
      and measurement=$2;
 $$ language sql STABLE PARALLEL SAFE;
 
--- select get_measurement_id(1, 'NO2'),
---        wfms_no.measurement_time,
---        wfms_nox.value - wfms_no.value as value,
---        wfms_nox.flagged or wfms_no.flagged as flagged
---   from (select *
--- 	  from processed_campbell_wfms
--- 	 where measurement_type_id=get_measurement_id(1, 'NO')) wfms_no
--- 	 join (select *
--- 		 from processed_campbell_wfms
--- 		where measurement_type_id=get_measurement_id(1, 'NOx')) wfms_nox
--- 	     on wfms_no.measurement_time=wfms_nox.measurement_time;
--- and same for sea level pressure, wind speed, ...
+create or replace view wfms_no2 as
+  select get_measurement_id(1, 'NO2'),
+	 wfms_no.measurement_time,
+	 (wfms_nox.value - wfms_no.value) /
+	   interpolate_ce(get_measurement_id(1, 'NOx'),
+			  wfms_no.measurement_time) as value,
+	 wfms_nox.flagged or wfms_no.flagged as flagged
+    from (select *
+	    from processed_campbell_wfms
+	   where measurement_type_id=get_measurement_id(1, 'NO')) wfms_no
+	   join (select *
+		   from processed_campbell_wfms
+		  where measurement_type_id=get_measurement_id(1, 'NOx')) wfms_nox
+	       on wfms_no.measurement_time=wfms_nox.measurement_time;
+
+/* Combine all processed data. */
+CREATE materialized VIEW processed_measurements as
+  select * from processed_campbell_wfms
+   union
+  select * from wfms_no2
+   union
+  select * from processed_campbell_wfml;
+create index processed_measurements_idx on processed_measurements(measurement_type_id, measurement_time);
 
 
 /* Aggregate the processed data by hour using a function from
