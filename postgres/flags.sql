@@ -56,7 +56,7 @@ CREATE or replace VIEW contiguous_freezes AS
    group by measurement_type_id, freeze_group;
 
 -- get clusters of frozen anemometer times
-CREATE or replace VIEW freezing_clusters AS
+CREATE materialized VIEW freezing_clusters AS
   select measurement_type_id,
 	 tsrange(min(lower(freezing_times)),
 		 max(upper(freezing_times))) as freeze_period
@@ -71,6 +71,7 @@ CREATE or replace VIEW freezing_clusters AS
 		   window w as (partition by measurement_type_id
 				order by lower(freezing_times))) w2
    group by measurement_type_id, freeze_cluster;
+CREATE INDEX freezing_clusters_idx ON freezing_clusters using gist(measurement_type_id, freeze_period);
 
 /* Check for flags */
 create or replace function has_manual_flag(measurement_type int, measurement_time timestamp) RETURNS bool AS $$
@@ -112,15 +113,25 @@ create or replace function is_below_mdl(measurement_type_id int, value numeric) 
 			    where id=$1), false);
 $$ LANGUAGE sql stable parallel safe;
 
+create or replace function is_frozen(measurement_type_id int, measurement_time timestamp) RETURNS bool AS $$
+  select exists(select *
+		  from freezing_clusters
+		 where measurement_type_id=$1
+		   and $2 <@ freeze_period);
+$$ LANGUAGE sql stable parallel safe;
+  
 /* Determine if a measurement is flagged. */
 create or replace function is_flagged(measurement_type_id int, source sourcerow, measurement_time timestamp, value numeric, flagged boolean, median double precision, mad double precision) RETURNS bool AS $$
   -- Check for: 1) manual flags, 2) instrument flags, 3) calibrations,
-  -- 4) invalid values, and 5) outliers (based on the Hampel filter)
+  -- 4) invalid values, 5) outliers (based on the Hampel filter), and
+  -- 6) freezing anemometers
   select has_manual_flag(measurement_type_id, measurement_time)
 	   or coalesce(flagged, false)
 	   or has_calibration_flag(measurement_type_id, measurement_time)
 	   or not is_valid_value(measurement_type_id, value)
-	   or coalesce(is_outlier(value, median, mad), false);
+	   or coalesce(is_outlier(value, median, mad), false)
+	   or case when measurement_type_id=any(anemometer_ids()) then is_frozen(measurement_type_id, measurement_time)
+	      else false end;
 $$ LANGUAGE sql stable parallel safe;
 
 /* Get the NARSTO averaged data flag based on the number of
