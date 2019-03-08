@@ -61,9 +61,8 @@ CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
 		    calibrated_value, flagged, running_median,
 		    running_mad) as flagged
     from measurement_medians;
-$$ language sql;
-
-
+$$ language sql; 
+  
 CREATE materialized VIEW processed_campbell_wfms as
   select *
     from process_measurements((select array_agg(id)
@@ -77,6 +76,28 @@ CREATE materialized VIEW processed_campbell_wfml as
 				 from measurement_types
 				where site_id=2));
 create index processed_campbell_wfml_idx on processed_campbell_wfml(measurement_type_id, measurement_time);
+
+/* Add derived measurements to the processed measurements. */
+CREATE OR REPLACE FUNCTION get_measurement_id(int, text)
+  RETURNS int as $$
+  select id
+    from measurement_types
+   where site_id=$1
+     and measurement=$2;
+$$ language sql STABLE PARALLEL SAFE;
+
+-- select get_measurement_id(1, 'NO2'),
+--        wfms_no.measurement_time,
+--        wfms_nox.value - wfms_no.value as value,
+--        wfms_nox.flagged or wfms_no.flagged as flagged
+--   from (select *
+-- 	  from processed_campbell_wfms
+-- 	 where measurement_type_id=get_measurement_id(1, 'NO')) wfms_no
+-- 	 join (select *
+-- 		 from processed_campbell_wfms
+-- 		where measurement_type_id=get_measurement_id(1, 'NOx')) wfms_nox
+-- 	     on wfms_no.measurement_time=wfms_nox.measurement_time;
+-- and same for sea level pressure, wind speed, ...
 
 
 /* Aggregate the processed data by hour using a function from
