@@ -40,3 +40,4 @@ WFMS,SO2,"[2018-11-12 00:00, 2018-11-18 00:00)",AC,elevator construction
 WFMS,SO2,"[2018-11-20 00:00, 2018-11-23 00:00)",AC,elevator construction
 WFMS,SO2,"[2018-11-29 00:00, 2018-12-01 00:00)",AC,elevator construction
 WFMS,Ozone,"[2018-10-15 21:30, 2018-10-15 23:45)",AT,manual calibration
+WFMS,NOy,"[2018-09-27 13:00, 2018-10-03 10:00)",AN,unknown error
