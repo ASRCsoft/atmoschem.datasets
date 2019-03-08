@@ -18,7 +18,6 @@ dbname = commandArgs(trailingOnly = T)[1]
 ## get the sites and corresponding IDs
 pg = dbxConnect(adapter = 'postgres', dbname = dbname)
 sites = dbxSelect(pg, 'select * from sites')
-measurement_types = dbxSelect(pg, 'select * from measurement_types')
 dbxDisconnect(pg)
 
 update_measurement_types = function(site_id, df) {
@@ -30,6 +29,13 @@ update_measurement_types = function(site_id, df) {
             where_cols = c('site_id', 'measurement'),
             skip_existing = T)
   dbxDisconnect(pg)
+}
+
+get_measurement_types = function() {
+  pg = dbxConnect(adapter = 'postgres', dbname = dbname)
+  measurement_types = dbxSelect(pg, 'select * from measurement_types')
+  dbxDisconnect(pg)
+  measurement_types
 }
 
 fast_lookup = function(vals, dict) {
@@ -115,6 +121,7 @@ write_campbell = function(f) {
   names(campbell_long) = tolower(names(campbell_long))
   site_id = sites$id[sites$short_name == site]
   update_measurement_types(site_id, campbell_long)
+  measurement_types = get_measurement_types()
   site_measurement_types =
     measurement_types[measurement_types$site_id == site_id, ]
   campbell_long$measurement_type_id =
