@@ -112,34 +112,32 @@ CREATE materialized VIEW processed_measurements as
   select * from processed_campbell_wfml;
 create index processed_measurements_idx on processed_measurements(measurement_type_id, measurement_time);
 
+select measurement_type_id,
+       measurement_time,
+       value,
+       get_hourly_flag(measurement_type_id, value, n_values::int) as flag
+  from (select measurement_type_id,
+	       date_trunc('hour', measurement_time) as measurement_time,
+	       avg(value) FILTER (WHERE not flagged) as value,
+	       count(value) FILTER (WHERE not flagged) as n_values
+	  from processed_measurements
+	 group by measurement_type_id, date_trunc('hour', measurement_time)) c1;
+
 
 /* Aggregate the processed data by hour using a function from
    flags.sql. */
-CREATE materialized VIEW hourly_campbell_wfms as
+CREATE materialized VIEW hourly_measurements as
   select measurement_type_id,
 	 measurement_time,
 	 value,
 	 get_hourly_flag(measurement_type_id, value, n_values::int) as flag
     from (select measurement_type_id,
-		 time_bucket('1 hour', measurement_time) as measurement_time,
+		 date_trunc('hour', measurement_time) as measurement_time,
 		 avg(value) FILTER (WHERE not flagged) as value,
 		 count(value) FILTER (WHERE not flagged) as n_values
-	    from processed_campbell_wfms
-	   group by measurement_type_id, time_bucket('1 hour', measurement_time)) c1;
-create index hourly_campbell_wfms_idx on hourly_campbell_wfms(measurement_type_id, measurement_time);
-
-CREATE materialized VIEW hourly_campbell_wfml as
-  select measurement_type_id,
-	 measurement_time,
-	 value,
-	 get_hourly_flag(measurement_type_id, value, n_values::int) as flag
-    from (select measurement_type_id,
-		 time_bucket('1 hour', measurement_time) as measurement_time,
-		 avg(value) FILTER (WHERE not flagged) as value,
-		 count(value) FILTER (WHERE not flagged) as n_values
-	    from processed_campbell_wfml
-	   group by measurement_type_id, time_bucket('1 hour', measurement_time)) c1;
-create index hourly_campbell_wfml_idx on hourly_campbell_wfml(measurement_type_id, measurement_time);
+	    from processed_measurements
+	   group by measurement_type_id, date_trunc('hour', measurement_time)) c1;
+create index hourly_measurements_idx on hourly_measurements(measurement_type_id, measurement_time);
 
 /* To update the processed data, simply need to refresh the relevant
 materialized views. For example, to update WFMS campbell results:
