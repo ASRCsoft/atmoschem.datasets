@@ -24,6 +24,8 @@ create table measurement_types (
   span numeric,
   has_calibration boolean,
   remove_outliers boolean,
+  apply_ce boolean,
+  max_ce numeric,
   unique(site_id, measurement)
 );
 

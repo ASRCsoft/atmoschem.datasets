@@ -17,7 +17,9 @@ create or replace view calibrated_measurements as
 	 instrument_time,
 	 record,
 	 value,
-	 case when has_calibration then apply_calib(c.measurement_type_id, value, instrument_time)
+	 case when apply_ce then apply_calib(c.measurement_type_id, value, instrument_time) /
+		interpolate_ce(c.measurement_type_id, instrument_time)
+	 when has_calibration then apply_calib(c.measurement_type_id, value, instrument_time)
 	 else value end as calibrated_value,
 	 flagged,
 	 valid_range,

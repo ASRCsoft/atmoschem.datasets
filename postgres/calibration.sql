@@ -123,11 +123,13 @@ CREATE MATERIALIZED VIEW conversion_efficiencies AS
   select measurement_type_id,
 	 cal_times,
 	 apply_calib(measurement_type_id, value,
-		     upper(cal_times)) / 12.57 as conversion_efficiency
+		     upper(cal_times)) / max_ce as conversion_efficiency
     from (select *,
 		 estimate_cal(measurement_type_id, type, cal_times) as value
 	    from calibration_periods
 	   where type='CE') c1
+	   join measurement_types m1
+	       on c1.measurement_type_id=m1.id
    where value is not null;
 -- to make the interpolate_ce function faster
 CREATE INDEX conversion_efficiencies_upper_time_idx ON conversion_efficiencies(upper(cal_times));
