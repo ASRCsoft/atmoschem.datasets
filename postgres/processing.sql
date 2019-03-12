@@ -63,7 +63,7 @@ CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
 		    calibrated_value, flagged, running_median,
 		    running_mad) as flagged
     from measurement_medians;
-$$ language sql; 
+$$ language sql;
   
 CREATE materialized VIEW processed_campbell_wfms as
   select *
@@ -88,20 +88,70 @@ CREATE OR REPLACE FUNCTION get_measurement_id(int, text)
      and measurement=$2;
 $$ language sql STABLE PARALLEL SAFE;
 
-create or replace view wfms_no2 as
-  select get_measurement_id(1, 'NO2'),
-	 wfms_no.measurement_time,
-	 (wfms_nox.value - wfms_no.value) /
-	   interpolate_ce(get_measurement_id(1, 'NOx'),
-			  wfms_no.measurement_time) as value,
-	 wfms_nox.flagged or wfms_no.flagged as flagged
+-- I'll have to change this soon to deal with different data sources
+CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measurement_type_id2 int)
+  RETURNS TABLE (
+    measurement_time timestamp,
+    value1 numeric,
+    value2 numeric,
+    flagged1 boolean,
+    flagged2 boolean
+  ) as $$
+  select m1.measurement_time,
+	 m1.value,
+	 m2.value,
+	 m1.flagged,
+	 m2.flagged
     from (select *
 	    from processed_campbell_wfms
-	   where measurement_type_id=get_measurement_id(1, 'NO')) wfms_no
+	   where measurement_type_id=$1) m1
 	   join (select *
 		   from processed_campbell_wfms
-		  where measurement_type_id=get_measurement_id(1, 'NOx')) wfms_nox
-	       on wfms_no.measurement_time=wfms_nox.measurement_time;
+		  where measurement_type_id=$2) m2
+	       on m1.measurement_time=m2.measurement_time;
+$$ language sql;
+
+create or replace view wfms_no2 as
+  select get_measurement_id(1, 'NO2'),
+	 measurement_time,
+	 (value2 - value1) /
+	   interpolate_ce(get_measurement_id(1, 'NOx'),
+			  measurement_time) as value,
+	 flagged1 or flagged2 as flagged
+    from combine_measures(get_measurement_id(1, 'NO'),
+			  get_measurement_id(1, 'NOx'));
+
+create or replace view wfms_slp as
+  select get_measurement_id(1, 'SLP'),
+	 measurement_time,
+	 value1 *
+	   (1 - .0065 * 1483.5 /
+	   (value2 + .0065 * 1483.5 + 273.15))^(-5.257) as value,
+	 flagged1 or flagged2 as flagged
+    from combine_measures(get_measurement_id(1, 'BP'),
+			  get_measurement_id(1, 'PTemp_C'));
+
+create or replace view wfms_ws as
+  select get_measurement_id(1, 'WS'),
+	 measurement_time,
+	 greatest(case when not flagged1 then value1
+		  else null end,
+		  case when not flagged2 then value2
+		  else null end) as value,
+	 flagged1 and flagged2 as flagged
+    from combine_measures(get_measurement_id(1, 'WS3Cup'),
+			  get_measurement_id(1, 'WS3CupB'));
+
+create or replace view wfms_ws_max as
+  select get_measurement_id(1, 'WS_Max'),
+	 measurement_time,
+	 greatest(case when not flagged1 then value1
+		  else null end,
+		  case when not flagged2 then value2
+		  else null end) as value,
+	 flagged1 and flagged2 as flagged
+    from combine_measures(get_measurement_id(1, 'WS3Cup_Max'),
+			  get_measurement_id(1, 'WS3CupB_Max'));
 
 /* Combine all processed data. */
 CREATE materialized VIEW processed_measurements as
@@ -109,20 +159,14 @@ CREATE materialized VIEW processed_measurements as
    union
   select * from wfms_no2
    union
+  select * from wfms_slp
+   union
+  select * from wfms_ws
+   union
+  select * from wfms_ws_max
+   union
   select * from processed_campbell_wfml;
 create index processed_measurements_idx on processed_measurements(measurement_type_id, measurement_time);
-
-select measurement_type_id,
-       measurement_time,
-       value,
-       get_hourly_flag(measurement_type_id, value, n_values::int) as flag
-  from (select measurement_type_id,
-	       date_trunc('hour', measurement_time) as measurement_time,
-	       avg(value) FILTER (WHERE not flagged) as value,
-	       count(value) FILTER (WHERE not flagged) as n_values
-	  from processed_measurements
-	 group by measurement_type_id, date_trunc('hour', measurement_time)) c1;
-
 
 /* Aggregate the processed data by hour using a function from
    flags.sql. */
