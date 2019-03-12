@@ -177,7 +177,11 @@ CREATE materialized VIEW hourly_measurements as
 	 get_hourly_flag(measurement_type_id, value, n_values::int) as flag
     from (select measurement_type_id,
 		 date_trunc('hour', measurement_time) as measurement_time,
-		 avg(value) FILTER (WHERE not flagged) as value,
+		 case when (select measurement like '%\_Max'
+			      from measurement_types
+			     where id=measurement_type_id)
+		   then max(value) FILTER (WHERE not flagged)
+		 else avg(value) FILTER (WHERE not flagged) end as value,
 		 count(value) FILTER (WHERE not flagged) as n_values
 	    from processed_measurements
 	   group by measurement_type_id, date_trunc('hour', measurement_time)) c1;
