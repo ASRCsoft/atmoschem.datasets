@@ -139,9 +139,31 @@ CREATE materialized VIEW hourly_measurements as
 	   group by measurement_type_id, date_trunc('hour', measurement_time)) c1;
 create index hourly_measurements_idx on hourly_measurements(measurement_type_id, measurement_time);
 
-/* To update the processed data, simply need to refresh the relevant
-materialized views. For example, to update WFMS campbell results:
+/* Update the processed data. */
+CREATE OR REPLACE FUNCTION update_processing(text)
+  RETURNS void as $$
+  begin
+    EXECUTE format('refresh materialized view %I',
+		   'processed_' || $1);
+  end;
+$$ language plpgsql;
 
-refresh materialized view calibration_values;
-refresh materialized view processed_campbell_wfms;
-refresh materialized view hourly_campbell_wfms; */
+CREATE OR REPLACE FUNCTION update_all(text)
+  RETURNS void as $$
+  declare
+  data_sources text[] := array['campbell_wfms', 'campbell_wfml'];
+  begin
+    refresh materialized view calibration_values;
+    refresh materialized view conversion_efficiencies;
+    refresh materialized view freezing_clusters;
+    if $1='all' then
+      for i in 1..array_upper(data_sources, 1) loop
+	perform update_processing(data_sources[i]);
+      end loop;
+    else
+      perform update_processing($1);
+    end if;
+    refresh materialized view processed_measurements;
+    refresh materialized view hourly_measurements;
+  end;
+$$ language plpgsql;
