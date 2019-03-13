@@ -23,6 +23,7 @@ write_metadata = function(f, tbl_name) {
   ## get the measurement type IDs
   meta = merge(meta, measurement_types)
   meta$site_id = NULL
+  meta$data_source = NULL
   meta$measurement = NULL
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
   ## clear old data first
@@ -34,7 +35,7 @@ write_metadata = function(f, tbl_name) {
 
 write_measurement_types = function(f) {
   measurements_file = file.path(f, 'measurement_types.csv')
-  idx_cols = c('measurement', 'site_id')
+  idx_cols = c('data_source', 'measurement', 'site_id')
   ## write_metadata(measurements_file,
   ##                'measurement_types', idx_cols)
   meta = read.csv(measurements_file, na.strings=c('', 'NA'))
@@ -62,7 +63,7 @@ write_measurement_types(f)
 ## get the new measurement types
 pg = dbxConnect(adapter = 'postgres', dbname = dbname)
 measurement_types =
-  dbxSelect(pg, 'select id as measurement_type_id, site_id, measurement from measurement_types')
+  dbxSelect(pg, 'select id as measurement_type_id, site_id, data_source, measurement from measurement_types')
 dbxDisconnect(pg)
 ## return to loading the metadata
 message('Loading autocalibration schedule...')
