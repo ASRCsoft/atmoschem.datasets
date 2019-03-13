@@ -88,7 +88,8 @@ CREATE OR REPLACE FUNCTION get_measurement_id(int, text)
      and measurement=$2;
 $$ language sql STABLE PARALLEL SAFE;
 
--- I'll have to change this soon to deal with different data sources
+-- join two measurement types to make it easy to derive values from
+-- multiple measurements
 CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measurement_type_id2 int)
   RETURNS TABLE (
     measurement_time timestamp,
@@ -97,19 +98,34 @@ CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measuremen
     flagged1 boolean,
     flagged2 boolean
   ) as $$
-  select m1.measurement_time,
-	 m1.value,
-	 m2.value,
-	 m1.flagged,
-	 m2.flagged
-    from (select *
-	    from processed_campbell_wfms
-	   where measurement_type_id=$1) m1
-	   join (select *
-		   from processed_campbell_wfms
-		  where measurement_type_id=$2) m2
-	       on m1.measurement_time=m2.measurement_time;
-$$ language sql;
+  declare
+  q text := '
+    select m1.measurement_time,
+	   m1.value,
+	   m2.value,
+	   m1.flagged,
+	   m2.flagged
+      from (select *
+	      from %I
+	     where measurement_type_id=$1) m1
+	     join (select *
+		     from %I
+		    where measurement_type_id=$2) m2
+		 on m1.measurement_time=m2.measurement_time';
+  data_source text;
+  begin
+    -- get the processed data view name using the data source and site
+    select 'processed_' ||
+	     m1.data_source ||
+	     '_' || lower(sites.short_name) into data_source
+      from measurement_types m1
+	     join sites
+		 on m1.site_id=sites.id
+     where m1.id=measurement_type_id1;
+    RETURN QUERY EXECUTE format(q, data_source, data_source)
+      USING measurement_type_id1, measurement_type_id2;
+  end;
+$$ language plpgsql;
 
 create or replace view wfms_no2 as
   select get_measurement_id(1, 'NO2'),
