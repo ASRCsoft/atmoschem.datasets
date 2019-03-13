@@ -104,8 +104,8 @@ CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measuremen
     select m1.measurement_time,
 	   m1.value,
 	   m2.value,
-	   m1.flagged,
-	   m2.flagged
+	   coalesce(m1.flagged, false),
+	   coalesce(m2.flagged, false)
       from (select *
 	      from %I
 	     where measurement_type_id=$1) m1
@@ -129,14 +129,23 @@ CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measuremen
 $$ language plpgsql;
 
 create or replace view wfms_no2 as
-  select get_measurement_id(1, 'NO2'),
+  select measurement_type_id,
 	 measurement_time,
-	 (value2 - value1) /
-	   interpolate_ce(get_measurement_id(1, 'NOx'),
-			  measurement_time) as value,
-	 flagged1 or flagged2 as flagged
-    from combine_measures(get_measurement_id(1, 'NO'),
-			  get_measurement_id(1, 'NOx'));
+	 value,
+	 flagged or
+	   is_outlier(value, runmed(value) over w,
+		      runmad(value) over w) as flagged
+    from (select get_measurement_id(1, 'NO2') as measurement_type_id,
+		 measurement_time,
+		 (value2 - value1) /
+		   interpolate_ce(get_measurement_id(1, 'NOx'),
+				  measurement_time) as value,
+		 flagged1 or flagged2 as flagged
+	    from combine_measures(get_measurement_id(1, 'NO'),
+				  get_measurement_id(1, 'NOx'))) cm1
+	   WINDOW w AS (partition by measurement_type_id
+			ORDER BY measurement_time
+			rows between 120 preceding and 120 following);
 
 create or replace view wfms_slp as
   select get_measurement_id(1, 'SLP'),
