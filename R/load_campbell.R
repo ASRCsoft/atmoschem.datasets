@@ -23,17 +23,18 @@ dbxDisconnect(pg)
 update_measurement_types = function(site_id, df) {
   ## add measurement types that don't already exist in postgres
   mt_df = data.frame(site_id = site_id,
-                     measurement = unique(df$measurement))
+                     measurement = unique(df$measurement),
+                     data_source = 'campbell')
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
   dbxUpsert(pg, 'measurement_types', mt_df,
-            where_cols = c('site_id', 'measurement'),
+            where_cols = c('site_id', 'measurement', 'data_source'),
             skip_existing = T)
   dbxDisconnect(pg)
 }
 
 get_measurement_types = function() {
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
-  measurement_types = dbxSelect(pg, 'select * from measurement_types')
+  measurement_types = dbxSelect(pg, "select * from measurement_types where data_source='campbell'")
   dbxDisconnect(pg)
   measurement_types
 }

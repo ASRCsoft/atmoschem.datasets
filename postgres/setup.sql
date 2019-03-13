@@ -18,15 +18,16 @@ values ('WFMS', 'Whiteface Mountain Summit'),
 create table measurement_types (
   id serial primary key,
   site_id int not null references sites,
+  data_source text not null,
   measurement text not null,
   valid_range numrange,
   mdl numeric,
   span numeric,
   has_calibration boolean,
   remove_outliers boolean,
-  apply_ce boolean,
-  max_ce numeric,
-  unique(site_id, measurement)
+  apply_ce max_ce,
+  boolean numeric,
+  unique(site_id, data_source, measurement)
 );
 
 create table measurements (
