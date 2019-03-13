@@ -20,6 +20,7 @@ create table measurement_types (
   site_id int not null references sites,
   data_source text not null,
   measurement text not null,
+  apply_processing boolean,
   valid_range numrange,
   mdl numeric,
   span numeric,

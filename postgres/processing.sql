@@ -27,7 +27,8 @@ create or replace view calibrated_measurements as
 	 remove_outliers
     from measurements c
 	   left join measurement_types m
-	       on c.measurement_type_id=m.id;
+	       on c.measurement_type_id=m.id
+   where apply_processing;
 
 CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
   RETURNS TABLE (
