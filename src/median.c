@@ -25,11 +25,11 @@ median_transfn(PG_FUNCTION_ARGS)
   if (PG_ARGISNULL(0)) {
     // if the state hasn't been initialized yet
     state = MemoryContextAlloc(aggContext, sizeof(median_state));
-    state->mediator = MediatorNew(241);
+    /* state->mediator = MediatorNew(241); */
+    state->mediator = MediatorNew(PG_GETARG_INT32(2));
   } else {
     state = (median_state *)PG_GETARG_POINTER(0);
   }
-  /* MediatorInsert(state->mediator, PG_GETARG_INT32(1)); */
   MediatorInsert(state->mediator, PG_GETARG_FLOAT8(1));
   PG_RETURN_POINTER(state);
 }

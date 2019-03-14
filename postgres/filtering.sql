@@ -2,12 +2,12 @@
    data. */
 
 /* Efficient median filter */
-CREATE OR REPLACE FUNCTION runmed_transfn(internal, double precision)
+CREATE OR REPLACE FUNCTION runmed_transfn(internal, double precision, int)
 RETURNS internal
 AS 'median', 'median_transfn'
 LANGUAGE c IMMUTABLE parallel safe;
 
-CREATE OR REPLACE FUNCTION runmed_invtransfn(internal, double precision)
+CREATE OR REPLACE FUNCTION runmed_invtransfn(internal, double precision, int)
   RETURNS internal
 AS 'median', 'median_invtransfn'
 LANGUAGE c IMMUTABLE parallel safe;
@@ -17,7 +17,7 @@ RETURNS double precision
 AS 'median', 'median_finalfn'
 LANGUAGE c IMMUTABLE parallel safe;
 
-CREATE AGGREGATE runmed(double precision) (
+CREATE AGGREGATE runmed(double precision, int) (
   stype = internal,
   sfunc = runmed_transfn,
   finalfunc = runmed_finalfn,
