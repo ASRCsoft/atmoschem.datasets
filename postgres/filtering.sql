@@ -1,7 +1,21 @@
 /* Tables and functions for applying various filters to instrument
    data. */
 
-/* Efficient median filter */
+/* Inefficient but flexible median aggregate */
+CREATE OR REPLACE FUNCTION median_finalfn(numeric[]) RETURNS double precision AS $$
+  select percentile_cont(.5) within group (order by v)
+    from unnest($1) v;
+$$ LANGUAGE sql IMMUTABLE;
+
+CREATE AGGREGATE median(numeric) (
+  stype = numeric[],
+  sfunc = array_append,
+  finalfunc = median_finalfn,
+  initcond = '{}',
+  PARALLEL = SAFE
+);
+
+/* Efficient but currently inflexible median filter */
 CREATE OR REPLACE FUNCTION runmed_transfn(internal, double precision)
 RETURNS internal
 AS 'median', 'median_transfn'
