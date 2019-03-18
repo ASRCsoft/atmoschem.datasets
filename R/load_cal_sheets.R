@@ -115,59 +115,6 @@ write_42C = function(f) {
   }
 }
 
-write_42i = function(f) {
-  pdf = read_pdf_form(f)
-  ## get the site
-  path_folders = strsplit(f, '/')[[1]]
-  site = path_folders[length(path_folders) - 1]
-  ## [don't need] cal start time: time_log_1
-  ## has zero: zero_cal_mode_2?
-  ## zero time: time_log_3
-  ## NO zero: measured_zero_noy_a_3
-  ## NOx zero: measured_zero_noy_b_3
-  ## set 42C zero: set_42ctls_to_zero_3
-  ## has span: span_cal_mode_4?
-  ## span time: time_log_5
-  ## NO span: measured_span_noy_a_5
-  ## NOx span: measured_span_noy_b_5
-  ## set NO span: set_span_noy_a_5
-  ## set NOx span: set_span_noy_b_5
-  ## has zero check: zero_check_7?
-  ## zero check time: time_log_7
-  ## NO zero check: 42ctls_zero_noy_a_7
-  ## NOx zero check: 42ctls_zero_noy_b_7
-  ## [don't need] cal end time: time_log_8
-  if (box_checked(pdf$zero_cal_mode_2) && !is.na(pdf$time_log_3)) {
-    cal_time = strptime(paste(pdf$date, pdf$time_log_3),
-                        '%d-%b-%y %H:%M')
-    corrected = box_checked(pdf$set_42ctls_to_zero_3)
-    write_cal(site, 'NO', 'zero', cal_time,
-              pdf$measured_zero_noy_a_3,
-              corrected)
-    write_cal(site, 'NOx', 'zero', cal_time,
-              pdf$measured_zero_noy_b_3,
-              corrected)
-  }
-  if (box_checked(pdf$span_cal_mode_4) && !is.na(pdf$time_log_5)) {
-    cal_time = strptime(paste(pdf$date, pdf$time_log_5),
-                        '%d-%b-%y %H:%M')
-    write_cal(site, 'NO', 'span', cal_time,
-              pdf$measured_span_noy_a_5,
-              box_checked(pdf$set_span_noy_a_5))
-    write_cal(site, 'NOx', 'span', cal_time,
-              pdf$measured_span_noy_b_5,
-              box_checked(pdf$set_span_noy_b_5))
-  }
-  if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
-    cal_time = strptime(paste(pdf$date, pdf$time_log_7),
-                        '%d-%b-%y %H:%M')
-    write_cal(site, 'NO', 'zero check', cal_time,
-              pdf$`42ctls_zero_noy_a_7`, FALSE)
-    write_cal(site, 'NOx', 'zero check', cal_time,
-              pdf$`42ctls_zero_noy_b_7`, FALSE)
-  }
-}
-
 write_42Cs = function(f) {
   pdf = read_pdf_form(f)
   ## get the site
