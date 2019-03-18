@@ -108,9 +108,9 @@ write_42C = function(f) {
   if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_7),
                         '%d-%b-%y %H:%M')
-    write_cal(site, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero check', cal_time,
               pdf$`42ctls_zero_noy_a_7`, FALSE)
-    write_cal(site, 'NOx', 'zero', cal_time,
+    write_cal(site, 'NOx', 'zero check', cal_time,
               pdf$`42ctls_zero_noy_b_7`, FALSE)
   }
 }
@@ -161,9 +161,9 @@ write_42i = function(f) {
   if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_7),
                         '%d-%b-%y %H:%M')
-    write_cal(site, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero check', cal_time,
               pdf$`42ctls_zero_noy_a_7`, FALSE)
-    write_cal(site, 'NOx', 'zero', cal_time,
+    write_cal(site, 'NOx', 'zero check', cal_time,
               pdf$`42ctls_zero_noy_b_7`, FALSE)
   }
 }
@@ -208,7 +208,7 @@ write_42Cs = function(f) {
   if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_7),
                         '%d-%b-%y %H:%M')
-    write_cal(site, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero check', cal_time,
               pdf$`42ctls_zero_noy_a_7`, FALSE)
   }
 }
