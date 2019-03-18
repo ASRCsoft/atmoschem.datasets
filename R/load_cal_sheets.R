@@ -160,6 +160,38 @@ write_42Cs = function(f) {
   }
 }
 
+write_48C = function(f) {
+  pdf = read_pdf_form(f)
+  ## get the site
+  path_folders = strsplit(f, '/')[[1]]
+  site = path_folders[length(path_folders) - 1]
+
+  if (box_checked(pdf$zero_cal_mode_2) && !is.na(pdf$time_log_3)) {
+    cal_time = strptime(paste(pdf$date, pdf$time_log_3),
+                        '%d-%b-%y %H:%M')
+    write_cal(site, 'CO', 'zero', cal_time,
+              pdf$measured_zero_3,
+              box_checked(pdf$`set_48C_zero_offset_ 3`))
+  }
+  if (box_checked(pdf$span_cal_mode_4) && !is.na(pdf$time_log_5)) {
+    cal_time = strptime(paste(pdf$date, pdf$time_log_5),
+                        '%d-%b-%y %H:%M')
+    write_cal(site, 'CO', 'span', cal_time,
+              pdf$measured_span_5,
+              box_checked(pdf$set_48C_span_5))
+  }
+  if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
+    ## I can't seem to find the equivalent of the 42Cs'
+    ## '42ctls_zero_noy_a_7' field for zero check values for this
+    ## calibration
+    stop('Zero check not implemented for 48C')
+    ## cal_time = strptime(paste(pdf$date, pdf$time_log_7),
+    ##                     '%d-%b-%y %H:%M')
+    ## write_cal(site, 'CO', 'zero check', cal_time,
+    ##           pdf$`42ctls_zero_noy_a_7`, FALSE)
+  }
+}
+
 files = commandArgs(trailingOnly = T)[-1]
 for (f in files) {
   message(paste('Importing', f))
@@ -169,6 +201,8 @@ for (f in files) {
     write_42C(f)
   } else if (file_type == '42Cs') {
     write_42Cs(f)
+  } else if (file_type == '48C') {
+    write_48C(f)
   }
 }
 
