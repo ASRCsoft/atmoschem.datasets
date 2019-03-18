@@ -12,8 +12,14 @@ dbname = commandArgs(trailingOnly = T)[1]
 
 ## get the sites and corresponding IDs
 pg = dbxConnect(adapter = 'postgres', dbname = dbname)
-sites = dbxSelect(pg, 'select * from stations')
+sites = dbxSelect(pg, 'select * from sites')
+measurement_types = dbxSelect(pg, 'select * from measurement_types')
 dbxDisconnect(pg)
+
+get_measurement_type_id = function(site_id, m) {
+  measurement_types[measurement_types$site_id == site_id &
+                    measurement_types$measurement == m, 'id']
+}
 
 ## Get the fields from a calibration pdf form.
 read_pdf_form = function(f) {
@@ -34,16 +40,20 @@ read_pdf_form = function(f) {
   pdfls
 }
 
-write_cal = function(station, measure, cal_type, cal_time,
+write_cal = function(site, measure, cal_type, cal_time,
                      measured_value, corrected) {
-  station_id = sites$id[match(station, sites$short_name)]
-  df = data.frame(station_id = station_id,
-                  instrument = measure,
+  site_id = sites$id[match(site, sites$short_name)]
+  if (site_id == 2 & measure == 'NOx') {
+    ## capitalize the 'x' for now to match the WFML Campbell files
+    measure = 'NOX'
+  }
+  measurement_type_id = get_measurement_type_id(site_id, measure)
+  df = data.frame(measurement_type_id = measurement_type_id,
                   type = cal_type,
                   cal_time = cal_time,
                   measured_value = measured_value,
                   corrected = corrected)
-  idx_cols = c('station_id', 'instrument', 'cal_time')
+  idx_cols = c('measurement_type_id', 'cal_time')
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
   dbxUpsert(pg, 'manual_calibrations', df, where_cols = idx_cols)
   dbxDisconnect(pg)
@@ -54,9 +64,9 @@ box_checked = function(box) !is.na(box) & box == 'On'
 
 write_42C = function(f) {
   pdf = read_pdf_form(f)
-  ## get the station
+  ## get the site
   path_folders = strsplit(f, '/')[[1]]
-  station = path_folders[length(path_folders) - 1]
+  site = path_folders[length(path_folders) - 1]
   ## [don't need] cal start time: time_log_1
   ## has zero: zero_cal_mode_2?
   ## zero time: time_log_3
@@ -78,38 +88,91 @@ write_42C = function(f) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_3),
                         '%d-%b-%y %H:%M')
     corrected = box_checked(pdf$set_42ctls_to_zero_3)
-    write_cal(station, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero', cal_time,
               pdf$measured_zero_noy_a_3,
               corrected)
-    write_cal(station, 'NOx', 'zero', cal_time,
+    write_cal(site, 'NOx', 'zero', cal_time,
               pdf$measured_zero_noy_b_3,
               corrected)
   }
   if (box_checked(pdf$span_cal_mode_4) && !is.na(pdf$time_log_5)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_5),
                         '%d-%b-%y %H:%M')
-    write_cal(station, 'NO', 'span', cal_time,
+    write_cal(site, 'NO', 'span', cal_time,
               pdf$measured_span_noy_a_5,
               box_checked(pdf$set_span_noy_a_5))
-    write_cal(station, 'NOx', 'span', cal_time,
+    write_cal(site, 'NOx', 'span', cal_time,
               pdf$measured_span_noy_b_5,
               box_checked(pdf$set_span_noy_b_5))
   }
   if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_7),
                         '%d-%b-%y %H:%M')
-    write_cal(station, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero', cal_time,
               pdf$`42ctls_zero_noy_a_7`, FALSE)
-    write_cal(station, 'NOx', 'zero', cal_time,
+    write_cal(site, 'NOx', 'zero', cal_time,
+              pdf$`42ctls_zero_noy_b_7`, FALSE)
+  }
+}
+
+write_42i = function(f) {
+  pdf = read_pdf_form(f)
+  ## get the site
+  path_folders = strsplit(f, '/')[[1]]
+  site = path_folders[length(path_folders) - 1]
+  ## [don't need] cal start time: time_log_1
+  ## has zero: zero_cal_mode_2?
+  ## zero time: time_log_3
+  ## NO zero: measured_zero_noy_a_3
+  ## NOx zero: measured_zero_noy_b_3
+  ## set 42C zero: set_42ctls_to_zero_3
+  ## has span: span_cal_mode_4?
+  ## span time: time_log_5
+  ## NO span: measured_span_noy_a_5
+  ## NOx span: measured_span_noy_b_5
+  ## set NO span: set_span_noy_a_5
+  ## set NOx span: set_span_noy_b_5
+  ## has zero check: zero_check_7?
+  ## zero check time: time_log_7
+  ## NO zero check: 42ctls_zero_noy_a_7
+  ## NOx zero check: 42ctls_zero_noy_b_7
+  ## [don't need] cal end time: time_log_8
+  if (box_checked(pdf$zero_cal_mode_2) && !is.na(pdf$time_log_3)) {
+    cal_time = strptime(paste(pdf$date, pdf$time_log_3),
+                        '%d-%b-%y %H:%M')
+    corrected = box_checked(pdf$set_42ctls_to_zero_3)
+    write_cal(site, 'NO', 'zero', cal_time,
+              pdf$measured_zero_noy_a_3,
+              corrected)
+    write_cal(site, 'NOx', 'zero', cal_time,
+              pdf$measured_zero_noy_b_3,
+              corrected)
+  }
+  if (box_checked(pdf$span_cal_mode_4) && !is.na(pdf$time_log_5)) {
+    cal_time = strptime(paste(pdf$date, pdf$time_log_5),
+                        '%d-%b-%y %H:%M')
+    write_cal(site, 'NO', 'span', cal_time,
+              pdf$measured_span_noy_a_5,
+              box_checked(pdf$set_span_noy_a_5))
+    write_cal(site, 'NOx', 'span', cal_time,
+              pdf$measured_span_noy_b_5,
+              box_checked(pdf$set_span_noy_b_5))
+  }
+  if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
+    cal_time = strptime(paste(pdf$date, pdf$time_log_7),
+                        '%d-%b-%y %H:%M')
+    write_cal(site, 'NO', 'zero', cal_time,
+              pdf$`42ctls_zero_noy_a_7`, FALSE)
+    write_cal(site, 'NOx', 'zero', cal_time,
               pdf$`42ctls_zero_noy_b_7`, FALSE)
   }
 }
 
 write_42Cs = function(f) {
   pdf = read_pdf_form(f)
-  ## get the station
+  ## get the site
   path_folders = strsplit(f, '/')[[1]]
-  station = path_folders[length(path_folders) - 1]
+  site = path_folders[length(path_folders) - 1]
   ## [don't need] cal start time: time_log_1
   ## zero time: time_log_3
   ## NOy A zero: measured_zero_noy_a_3
@@ -131,21 +194,21 @@ write_42Cs = function(f) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_3),
                         '%d-%b-%y %H:%M')
     corrected = box_checked(pdf$set_42ctls_to_zero_3)
-    write_cal(station, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero', cal_time,
               pdf$measured_zero_noy_a_3,
               corrected)
   }
   if (box_checked(pdf$span_cal_mode_4) && !is.na(pdf$time_log_5)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_5),
                         '%d-%b-%y %H:%M')
-    write_cal(station, 'NO', 'span', cal_time,
+    write_cal(site, 'NO', 'span', cal_time,
               pdf$measured_span_noy_a_5,
               box_checked(pdf$set_span_noy_a_5))
   }
   if (box_checked(pdf$zero_check_7) && !is.na(pdf$time_log_7)) {
     cal_time = strptime(paste(pdf$date, pdf$time_log_7),
                         '%d-%b-%y %H:%M')
-    write_cal(station, 'NO', 'zero', cal_time,
+    write_cal(site, 'NO', 'zero', cal_time,
               pdf$`42ctls_zero_noy_a_7`, FALSE)
   }
 }
@@ -154,7 +217,8 @@ files = commandArgs(trailingOnly = T)[-1]
 for (f in files) {
   message(paste('Importing', f))
   file_type = gsub('^.*/|_[^/]*$', '', f)
-  if (file_type == '42C') {
+  if (file_type == '42C' || file_type == '42i') {
+    ## 42C and 42i both use the same form template
     write_42C(f)
   } else if (file_type == '42Cs') {
     write_42Cs(f)
