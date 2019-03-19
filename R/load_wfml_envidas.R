@@ -40,7 +40,10 @@ write_envidas = function(f) {
   df = read_envidas(f)
   ## get timestamps from date and time columns
   df$instrument_time = as.POSIXct(paste(df$Date, df$Time),
-                                  format = '%m/%d/%Y %I:%M %p')
+                                  format = '%m/%d/%Y %I:%M %p',
+                                  tz = 'UTC')
+  ## ^ it's not really UTC but this keeps R from mucking with time
+  ## zones
 
   ## get data frame of values
   df_vals = df[, grepl(' : Value|instrument_time', names(df))]
