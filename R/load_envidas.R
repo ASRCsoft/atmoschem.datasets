@@ -46,9 +46,9 @@ read_envidas = function(f, ...) {
 
 write_envidas = function(f) {
   df = read_envidas(f)
-  ## check for the file with an absurd date format
-  file_name = gsub('.*/', '', f)
-  if (file_name == 'envi_rpt-1809.csv') {
+  ## check for newer files with the absurd date format
+  file_date = gsub('.*envi_rpt-|\\.csv', '', f)
+  if (file_date >= '1809') {
     date_format = '%d/%m/%Y %H:%M'
   } else {
     date_format = '%m/%d/%Y %I:%M %p'
