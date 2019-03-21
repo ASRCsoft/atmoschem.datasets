@@ -24,7 +24,8 @@ create or replace view calibrated_measurements as
 	 flagged,
 	 valid_range,
 	 mdl,
-	 remove_outliers
+	 remove_outliers,
+	 max_jump
     from measurements c
 	   left join measurement_types m
 	       on c.measurement_type_id=m.id
@@ -49,7 +50,9 @@ CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
 	   case when remove_outliers then runmed(calibrated_value) over w
 	   else null end as running_median,
 	   case when remove_outliers then runmad(calibrated_value) over w
-	   else null end as running_mad
+	   else null end as running_mad,
+	   case when max_jump is not null then abs(value - lag(value) over w) > max_jump
+	   else false end as is_jump
       from calibrated_measurements_subset
 	     WINDOW w AS (partition by measurement_type_id
 			  ORDER BY instrument_time
@@ -62,7 +65,7 @@ CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
 	 calibrated_value as value,
 	 is_flagged(measurement_type_id, null, instrument_time,
 		    calibrated_value, flagged, running_median,
-		    running_mad) as flagged
+		    running_mad) or is_jump as flagged
     from measurement_medians;
 $$ language sql;
   
