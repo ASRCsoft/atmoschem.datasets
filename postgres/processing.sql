@@ -171,6 +171,29 @@ create or replace view wfms_ws as
     from combine_measures(get_measurement_id(1, 'WS3Cup'),
 			  get_measurement_id(1, 'WS3CupB'));
 
+-- u and v vector wind speeds
+create or replace view wfms_ws_components as
+  with wswd as (select ws1.measurement_time as measurement_time,
+		       ws1.value as ws,
+		       pi() * (270 - wd1.value) / 180 as theta,
+		       ws1.flagged or wd1.flagged as flagged
+		  from wfms_ws ws1
+  			 join (select *
+				 from processed_campbell_wfms
+				where measurement_type_id=get_measurement_id(1, 'WindDir_D1_WVT')) wd1
+			     on ws1.measurement_time=wd1.measurement_time)
+  select get_measurement_id(1, 'WS_u'),
+	 measurement_time,
+	 ws * sin(theta) as value,
+	 flagged
+    from wswd
+   union
+  select get_measurement_id(1, 'WS_v'),
+	 measurement_time,
+	 ws * cos(theta) as value,
+	 flagged
+    from wswd;
+
 create or replace view wfms_ws_max as
   select get_measurement_id(1, 'WS_Max'),
 	 measurement_time,
@@ -193,6 +216,8 @@ CREATE materialized VIEW processed_measurements as
   select * from wfms_ws
    union
   select * from wfms_ws_max
+   union
+  select * from wfms_ws_components
    union
   select * from processed_campbell_wfml;
 create index processed_measurements_idx on processed_measurements(measurement_type_id, measurement_time);
