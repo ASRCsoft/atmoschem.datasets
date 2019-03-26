@@ -43,6 +43,15 @@ write_measurement_types = function(f) {
   meta$site = NULL
   pg = dbxConnect(adapter = 'postgres', dbname = dbname)
   dbxUpsert(pg, 'measurement_types', meta, where_cols = idx_cols)
+  ## don't process measurements types that aren't in the metadata
+  ## 1) find measurements in postgres but not in the metadata
+  pg_meta = dbxSelect(pg, 'select * from measurement_types')
+  merged_meta = merge(pg_meta, meta, by = idx_cols, all = T)
+  pg_only = subset(merged_meta, apply_processing.x &
+                                (is.na(apply_processing.y) | !apply_processing.y))
+  ## 2) turn off processing for those measurements
+  pg_update = cbind(pg_only[, idx_cols], apply_processing = NA)
+  dbxUpdate(pg, 'measurement_types', pg_update, idx_cols)
   dbxDisconnect(pg)
 }
 
