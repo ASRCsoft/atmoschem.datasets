@@ -68,20 +68,40 @@ CREATE OR REPLACE FUNCTION process_measurements(measurement_type_ids int[])
 		    running_mad) or is_jump as flagged
     from measurement_medians;
 $$ language sql;
-  
-CREATE materialized VIEW processed_campbell_wfms as
-  select *
-    from process_measurements((select array_agg(id)
-				 from measurement_types
-				where site_id=1));
-create index processed_campbell_wfms_idx on processed_campbell_wfms(measurement_type_id, measurement_time);
 
-CREATE materialized VIEW processed_campbell_wfml as
+/* Store processed results by data source*/
+CREATE OR REPLACE FUNCTION get_data_source_ids(int, text)
+  RETURNS int[] as $$
+  select array_agg(id)
+    from measurement_types
+   where site_id=$1
+     and data_source=$2;
+$$ language sql STABLE PARALLEL SAFE;
+  
+CREATE materialized VIEW processed_wfms_campbell as
   select *
-    from process_measurements((select array_agg(id)
-				 from measurement_types
-				where site_id=2));
-create index processed_campbell_wfml_idx on processed_campbell_wfml(measurement_type_id, measurement_time);
+    from process_measurements(get_data_source_ids(1, 'campbell'));
+create index processed_wfms_campbell_idx on processed_wfms_campbell(measurement_type_id, measurement_time);
+
+CREATE materialized VIEW processed_wfml_campbell as
+  select *
+    from process_measurements(get_data_source_ids(2, 'campbell'));
+create index processed_wfml_campbell_idx on processed_wfml_campbell(measurement_type_id, measurement_time);
+
+CREATE materialized VIEW processed_wfml_envidas as
+  select *
+    from process_measurements(get_data_source_ids(2, 'envidas'));
+create index processed_wfml_envidas_idx on processed_wfml_envidas(measurement_type_id, measurement_time);
+
+CREATE materialized VIEW processed_wfml_mesonet as
+  select *
+    from process_measurements(get_data_source_ids(2, 'mesonet'));
+create index processed_wfml_mesonet_idx on processed_wfml_mesonet(measurement_type_id, measurement_time);
+
+CREATE materialized VIEW processed_psp_envidas as
+  select *
+    from process_measurements(get_data_source_ids(3, 'envidas'));
+create index processed_psp_envidas_idx on processed_psp_envidas(measurement_type_id, measurement_time);
 
 /* Add derived measurements to the processed measurements. */
 CREATE OR REPLACE FUNCTION get_measurement_id(int, text)
@@ -120,8 +140,8 @@ CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measuremen
   begin
     -- get the processed data view name using the data source and site
     select 'processed_' ||
-	     m1.data_source ||
-	     '_' || lower(sites.short_name) into data_source
+	     lower(sites.short_name) ||
+	     '_' || m1.data_source into data_source
       from measurement_types m1
 	     join sites
 		 on m1.site_id=sites.id
@@ -207,7 +227,7 @@ create or replace view wfms_ws_max as
 
 /* Combine all processed data. */
 CREATE materialized VIEW processed_measurements as
-  select * from processed_campbell_wfms
+  select * from processed_wfms_campbell
    union
   select * from wfms_no2
    union
@@ -219,7 +239,13 @@ CREATE materialized VIEW processed_measurements as
    union
   select * from wfms_ws_components
    union
-  select * from processed_campbell_wfml;
+  select * from processed_wfml_campbell
+   union
+  select * from processed_wfml_envidas
+   union
+  select * from processed_wfml_mesonet
+   union
+  select * from processed_psp_envidas;
 create index processed_measurements_idx on processed_measurements(measurement_type_id, measurement_time);
 
 /* Aggregate the processed data by hour using a function from
