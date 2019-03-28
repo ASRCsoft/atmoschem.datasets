@@ -20,7 +20,7 @@ create table manual_calibrations (
   cal_time timestamp,
   measured_value numeric,
   corrected boolean not null,
-  primary key(measurement_type_id, cal_time)
+  primary key(measurement_type_id, type, cal_time)
 );
 
 create or replace function estimate_cal(measurement_type int, cal_type text, cal_times tsrange) returns numeric as $$
