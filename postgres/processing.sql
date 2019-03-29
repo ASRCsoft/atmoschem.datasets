@@ -138,6 +138,10 @@ CREATE OR REPLACE FUNCTION combine_measures(measurement_type_id1 int, measuremen
 		 on m1.measurement_time=m2.measurement_time';
   data_source text;
   begin
+    -- return null if measurements don't exist
+    if measurement_type_id1 is null or measurement_type_id2 is null then
+      return;
+    end if;
     -- get the processed data view name using the data source and site
     select 'processed_' ||
 	     lower(sites.short_name) ||
@@ -199,7 +203,7 @@ create or replace view wfms_ws_components as
 		       ws1.flagged or wd1.flagged as flagged
 		  from wfms_ws ws1
   			 join (select *
-				 from processed_campbell_wfms
+				 from processed_wfms_campbell
 				where measurement_type_id=get_measurement_id(1, 'WindDir_D1_WVT')) wd1
 			     on ws1.measurement_time=wd1.measurement_time)
   select get_measurement_id(1, 'WS_u'),
@@ -254,7 +258,7 @@ CREATE materialized VIEW hourly_measurements as
   select measurement_type_id,
 	 measurement_time,
 	 value,
-	 get_hourly_flag(measurement_type_id, value, n_values::int) as flag
+	 get_hourly_flag(measurement_type_id, value::numeric, n_values::int) as flag
     from (select measurement_type_id,
 		 date_trunc('hour', measurement_time) as measurement_time,
 		 case when (select measurement like '%\_Max'
@@ -279,7 +283,7 @@ $$ language plpgsql;
 CREATE OR REPLACE FUNCTION update_all(text)
   RETURNS void as $$
   declare
-  data_sources text[] := array['campbell_wfms', 'campbell_wfml'];
+  data_sources text[] := array['wfms_campbell', 'wfml_campbell'];
   begin
     refresh materialized view calibration_values;
     refresh materialized view conversion_efficiencies;
