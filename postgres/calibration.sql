@@ -61,7 +61,18 @@ CREATE MATERIALIZED VIEW calibration_values AS
 		 estimate_cal(measurement_type_id, type, cal_times) as value
 	    from calibration_periods
 	   where type in ('zero', 'span')) c1
-   where value is not null;
+   where value is not null
+  union
+  select measurement_type_id,
+	 type,
+	 tsrange(cal_time - interval '1 hour',
+		 cal_time, '[]') as cal_times,
+	 measured_value as value
+    from manual_calibrations m1
+	   join measurement_types m2
+	       on m1.measurement_type_id=m2.id
+   where site_id=3
+     and type in ('zero', 'span');
 -- to make the interpolate_cal function faster
 CREATE INDEX calibration_values_upper_time_idx ON calibration_values(measurement_type_id, type, upper(cal_times));
 
